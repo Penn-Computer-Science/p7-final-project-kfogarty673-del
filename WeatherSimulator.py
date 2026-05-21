@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 # small adjustments for each environment type
 # these values make the same input feel different in coast, mountain, plain, or urban settings
 location_effects = {
-    "coast": {"wind_delta": 5, "temp_delta": -2, "cape_factor": 0.9, "color": "#7fc7ff", "label": "Coastal"},
-    "mountains": {"wind_delta": 2, "temp_delta": -4, "cape_factor": 0.8, "color": "#9b7c4f", "label": "Mountain"},
-    "plains": {"wind_delta": 0, "temp_delta": 0, "cape_factor": 1.0, "color": "#c9e294", "label": "Plains"},
-    "urban": {"wind_delta": -2, "temp_delta": 3, "cape_factor": 1.1, "color": "#d3d3d3", "label": "Urban"},
+    "coast": {"wind_delta": 5, "temp_delta": -2, "cape_factor": 0.9, "color": "#7fc7ff", "label": "Coastal"}, # coastal areas often have stronger winds and slightly cooler temperatures due to the influence of the ocean, and a slightly reduced cape factor due to more stable air
+    "mountains": {"wind_delta": 2, "temp_delta": -4, "cape_factor": 0.8, "color": "#9b7c4f", "label": "Mountain"}, # mountainous areas can have stronger winds and much cooler temperatures due to elevation, and a reduced cape factor due to more stable air
+    "plains": {"wind_delta": 0, "temp_delta": 0, "cape_factor": 1.0, "color": "#c9e294", "label": "Plains"}, # plains are the baseline with no adjustments
+    "urban": {"wind_delta": -2, "temp_delta": 3, "cape_factor": 1.1, "color": "#d3d3d3", "label": "Urban"}, # urban areas often have reduced wind speeds due to buildings, higher temperatures due to the urban heat island effect, and a slightly increased cape factor due to more unstable air from surface heating
 }
 
 # how we label the chance of severe weather
@@ -36,7 +36,7 @@ def simulate_parcel_2d(cape, surface_temp, wind_speed=10):
         # use a simple rule to add upward motion based on temperature
         acceleration = g * (surface_temp / 300)
         vertical_velocity += acceleration * dt
-        vertical_velocity = min(vertical_velocity, max_velocity)
+        vertical_velocity = min(vertical_velocity, max_velocity) # cap the vertical velocity based on the available energy (cape)
 
         height += vertical_velocity * dt
         x += wind_speed * dt
@@ -47,10 +47,10 @@ def simulate_parcel_2d(cape, surface_temp, wind_speed=10):
         if height > 10000:
             break
 
-    return np.array(xs), np.array(ys)
+    return np.array(xs), np.array(ys) # return the path as two arrays of x and y coordinates for plotting
 
 
-def compute_severe_chance(cape, surface_temp, wind_speed, location_name):
+def compute_severe_chance(cape, surface_temp, wind_speed, location_name): # a simple formula to estimate the overall chance of severe weather based on the input conditions
     # turn the weather inputs into a single chance number between 0 and 1
     location = location_effects.get(location_name, location_effects["plains"])
     base_score = (cape / 3000) + ((surface_temp - 15) / 15) + (wind_speed / 20)
@@ -59,9 +59,9 @@ def compute_severe_chance(cape, surface_temp, wind_speed, location_name):
         "mountains": -0.05,
         "plains": 0.0,
         "urban": 0.08,
-    }.get(location_name, 0.0)
+    }.get(location_name, 0.0) # if the location is not recognized, use 0 as a default
 
-    chance = np.clip(0.05 + base_score * 0.2 + location_bonus, 0.0, 1.0)
+    chance = np.clip(0.05 + base_score * 0.2 + location_bonus, 0.0, 1.0) # the final chance is a combination of the base score and the location bonus, clipped to be between 0 and 1
     return chance
 
 
@@ -115,45 +115,49 @@ print("")
 
 # ask the user for values and use defaults when the input is not valid
 try:
-    cape = float(input("enter cape, the amount of potential energy available (jules/kg) [default 2000]: ") or 2000) 
-    surface_temp = float(input("enter surface temperature (°c) [default 30]: ") or 30)
-    wind_speed = float(input("enter horizontal wind speed (meters/s) [default 10]: ") or 10)
+    cape = float(input("enter cape, the amount of potential energy available (jules/kg) [default 2000]: ") or 2000)
+    surface_temp_f = float(input("enter surface temperature (°f) [default 86]: ") or 86)
+    wind_speed_ft = float(input("enter horizontal wind speed (ft/s) [default 32.8]: ") or 32.8)
     location_name = input("choose a location type (coast, mountains, plains, urban): ").strip().lower() or "plains"
 except ValueError:
     print("invalid input detected. using default conditions.")
     cape = 2000
-    surface_temp = 30
-    wind_speed = 10
+    surface_temp_f = 86
+    wind_speed_ft = 32.8
     location_name = "plains"
+
+# convert user input to the units the model uses internally
+surface_temp = (surface_temp_f - 32.0) * 5.0 / 9.0
+wind_speed = wind_speed_ft / 3.28084
 
 # if the typed location is not recognized, use plains as a safe fallback
 if location_name not in location_effects:
     print(f"unknown location '{location_name}'. defaulting to plains.")
     location_name = "plains"
 
-location = location_effects[location_name]
-adjusted_cape = cape * location["cape_factor"]
-adjusted_temp = surface_temp + location["temp_delta"]
-adjusted_wind = wind_speed + location["wind_delta"]
+location = location_effects[location_name] # get the location-specific adjustments for the input values
+adjusted_cape = cape * location["cape_factor"] # adjust the cape based on location
+adjusted_temp = surface_temp + location["temp_delta"] # adjust the temperature based on location
+adjusted_wind = wind_speed + location["wind_delta"] # adjust the wind speed based on location
 
 # convert units for display only
-surface_temp_f = surface_temp * 9.0 / 5.0 + 32.0
-wind_speed_ft = wind_speed * 3.28084
-
-chance = compute_severe_chance(adjusted_cape, adjusted_temp, adjusted_wind, location_name)
-risk_components = compute_risk_components(adjusted_cape, adjusted_temp, adjusted_wind, location_name)
-severity = severity_label(chance)
+surface_temp_f = surface_temp * 9.0 / 5.0 + 32.0 # convert celsius to fahrenheit for display
+wind_speed_ft = wind_speed * 3.28084 # convert m/s to ft/s for display
+ 
+chance = compute_severe_chance(adjusted_cape, adjusted_temp, adjusted_wind, location_name) # compute the overall chance of severe weather based on the adjusted inputs
+risk_components = compute_risk_components(adjusted_cape, adjusted_temp, adjusted_wind, location_name) 
+severity = severity_label(chance) # convert the chance number into a simple severity label for display
 
 def skew_x(temp, pressure, skew_factor=40):
     # move temperatures so the plot looks like a skew-t weather chart
     return temp + skew_factor * np.log10(1000.0 / pressure)
 
-pressure = np.linspace(1000, 100, 40)
-height = 44307.7 * (1.0 - (pressure / 1000.0) ** 0.190284)
-env_temps = surface_temp - 6.5 * (height / 1000.0)
-parcel_temps = surface_temp - 9.8 * (height / 1000.0)
+pressure = np.linspace(1000, 100, 40) # typical pressure levels in hpa for the vertical axis of the skew-t diagram
+height = 44307.7 * (1.0 - (pressure / 1000.0) ** 0.190284) # approximate height in meters for each pressure level using the barometric formula, assuming a standard atmosphere and sea level conditions
+env_temps = surface_temp - 6.5 * (height / 1000.0) # estimater the environmental temperature profile using a standard lapse rate of 6.5 degrees per km, starting from the surface temperature
+parcel_temps = surface_temp - 9.8 * (height / 1000.0) # estimate the parcel ascent temperature profile using a dry adiabatic lapse rate of 9.8 degrees per km, starting from the surface temperature
 
-fig, (ax_skewt, ax_info) = plt.subplots(1, 2, figsize=(16, 8), gridspec_kw={"width_ratios": [2, 1]})
+fig, (ax_skewt, ax_info) = plt.subplots(1, 2, figsize=(16, 8), gridspec_kw={"width_ratios": [2, 1]}) # create a figure with the skew-t diagram on the left and the info panel on the right
 fig.patch.set_facecolor('#f7f7f7')
 
 ax_skewt.set_facecolor('#f0f4fb')
