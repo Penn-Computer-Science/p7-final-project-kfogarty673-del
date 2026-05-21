@@ -75,7 +75,7 @@ def compute_risk_components(cape, surface_temp, wind_speed, location_name):
         0.0,
         1.0,
     )
-    location_mod = {
+    location_mod = { # weighting based on location type, some places are more prone to severe weather
         "coast": 0.05,
         "mountains": -0.05,
         "plains": 0.0,
@@ -105,17 +105,20 @@ def severity_label(chance):
         return "High"
     return "Extreme"
 
-
+print("")
+print("==============================================")
 print("welcome to the weather simulator!")
 print("you can enter cape, surface temperature and wind speed to see a parcel trajectory and severe weather chance.")
 print("location choices: coast, mountains, plains, urban")
+print("==============================================")
+print("")
 
 # ask the user for values and use defaults when the input is not valid
 try:
-    cape = float(input("enter cape (j/kg) [default 2000]: ") or 2000)
+    cape = float(input("enter cape, the amount of potential energy available (jules/kg) [default 2000]: ") or 2000) 
     surface_temp = float(input("enter surface temperature (°c) [default 30]: ") or 30)
-    wind_speed = float(input("enter horizontal wind speed (m/s) [default 10]: ") or 10)
-    location_name = input("choose a location type: ").strip().lower() or "plains"
+    wind_speed = float(input("enter horizontal wind speed (meters/s) [default 10]: ") or 10)
+    location_name = input("choose a location type (coast, mountains, plains, urban): ").strip().lower() or "plains"
 except ValueError:
     print("invalid input detected. using default conditions.")
     cape = 2000
@@ -132,6 +135,10 @@ location = location_effects[location_name]
 adjusted_cape = cape * location["cape_factor"]
 adjusted_temp = surface_temp + location["temp_delta"]
 adjusted_wind = wind_speed + location["wind_delta"]
+
+# convert units for display only
+surface_temp_f = surface_temp * 9.0 / 5.0 + 32.0
+wind_speed_ft = wind_speed * 3.28084
 
 chance = compute_severe_chance(adjusted_cape, adjusted_temp, adjusted_wind, location_name)
 risk_components = compute_risk_components(adjusted_cape, adjusted_temp, adjusted_wind, location_name)
@@ -187,11 +194,11 @@ ax_skewt.legend(loc='lower left')
 ax_info.axis('off')
 ax_info.set_title('severe weather forecast', fontsize=18, weight='bold')
 
-info_lines = [
+info_lines = [ # a block of text that summarizes the input conditions and the forecast
     f"location: {location['label']}",
     f"cape: {cape:.0f} j/kg",
-    f"surface temp: {surface_temp:.1f} °c",
-    f"wind speed: {wind_speed:.1f} m/s",
+    f"surface temp: {surface_temp:.1f} °c / {surface_temp_f:.1f} °f",
+    f"wind speed: {wind_speed:.1f} m/s / {wind_speed_ft:.1f} ft/s",
     "",
     f"adjusted cape: {adjusted_cape:.0f} j/kg",
     f"adjusted temp: {adjusted_temp:.1f} °c",
